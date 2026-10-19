@@ -9,6 +9,8 @@
 #define CHIP8_DISPLAY_WIDTH 64
 #define CHIP8_DISPLAY_HEIGHT 32
 #define CHIP8_NUM_REGISTERS 16
+#define CHIP8_PROGRAM_START 0x200
+#define CHIP8_FONT_ADDRESS 0x50
 
 typedef struct {
 	uint8_t memory[CHIP8_MEMORY_SIZE]; /* 4 kilobytes of RAM */
