@@ -4,6 +4,7 @@
 #include "chip8_stack.h"
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #define CHIP8_MEMORY_SIZE 4096
 #define CHIP8_DISPLAY_WIDTH 64
@@ -11,6 +12,7 @@
 #define CHIP8_NUM_REGISTERS 16
 #define CHIP8_PROGRAM_START 0x200
 #define CHIP8_FONT_ADDRESS 0x50
+#define CHIP8_PROGRAM_SIZE 4096 - 0x200
 
 typedef struct {
 	uint8_t memory[CHIP8_MEMORY_SIZE]; /* 4 kilobytes of RAM */
@@ -24,5 +26,6 @@ typedef struct {
 } chip8;
 
 void chip8_initialize(chip8 *emulator);
+bool chip8_load_rom(chip8 *emulator, const char *rom_path);
 
 #endif /* CHIP8_H */
