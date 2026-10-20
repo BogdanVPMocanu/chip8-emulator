@@ -24,8 +24,15 @@ static const uint8_t font[] = {
 	0xF0, 0x80, 0xF0, 0x80, 0x80  /* F */
 };
 
+static void clear_screen(chip8 *emulator) {
+	for (uint16_t i = 0; i < CHIP8_DISPLAY_WIDTH * CHIP8_DISPLAY_HEIGHT; i++) {
+		emulator->display[i] = CHIP8_PIXEL_OFF;
+	}
+}
+
 void chip8_initialize(chip8 *emulator) {
 	*emulator = (chip8){0};
+	clear_screen(emulator);
 	emulator->pc = CHIP8_PROGRAM_START;
 	chip8_stack_initialize(&emulator->stack);
 	memcpy(emulator->memory + CHIP8_FONT_ADDRESS, font, sizeof(font));
@@ -69,6 +76,90 @@ bool chip8_load_rom(chip8 *emulator, const char *rom_path) {
 	}
 
 	fclose(rom);
+
+	return true;
+}
+
+static uint16_t fetch(chip8 *emulator) {
+	uint16_t instruction = 0;
+	uint16_t upper_byte = emulator->memory[emulator->pc];
+	emulator->pc++;
+	uint16_t lower_byte = emulator->memory[emulator->pc];
+	emulator->pc++;
+
+	instruction = instruction | (upper_byte << 8);
+	instruction = instruction | lower_byte;
+
+	return instruction;
+}
+
+bool chip8_cycle(chip8 *emulator) {
+	if (emulator->pc > CHIP8_MEMORY_SIZE - 2) {
+		fprintf(stderr, "PC OUT OF BOUNDS: 0x%X\n", emulator->pc);
+		return false;
+	}
+
+	uint16_t curr_instruction = fetch(emulator);
+
+	uint8_t first_nibble = curr_instruction >> 12; /* instruction type */
+	uint8_t x = (curr_instruction >> 8) & 0xF; /* second nibble */
+	uint8_t y = (curr_instruction >> 4) & 0xF; /* third nibble */
+	uint8_t n = curr_instruction & 0xF; /* fourth nibble */
+	uint8_t nn = curr_instruction & 0xFF; /* second byte */
+	uint16_t nnn = curr_instruction & 0xFFF; /* second, third and fourth nibble */
+
+	switch (first_nibble) {
+		case 0x0:
+			if (nnn == 0x0E0) { /* clear screen */
+				clear_screen(emulator);
+			} else {
+				fprintf(stderr, "Unknown instruction: 0x%04X\n", curr_instruction);
+				return false;
+			}
+			break;
+		case 0x1: /* jump */
+			emulator->pc = nnn;
+			break;
+		case 0x6: /* set register */
+			emulator->v[x] = nn;
+			break;
+		case 0x7: /* add value to register */
+			emulator->v[x] += nn;
+			break;
+		case 0xA: /* set index register */
+			emulator->i = nnn;
+			break;
+		case 0xD: { /* display/draw */
+			uint8_t px = emulator->v[x] % CHIP8_DISPLAY_WIDTH;
+			uint8_t py = emulator->v[y] % CHIP8_DISPLAY_HEIGHT;
+			emulator->v[0xF] = 0;
+			for (uint8_t row = 0; row < n; row++) {
+				if (py + row >= CHIP8_DISPLAY_HEIGHT) {
+					break;
+				}
+				uint8_t sprite_data = emulator->memory[emulator->i + row];
+				for (uint8_t col = 0; col < 8; col++) {
+					if (px + col >= CHIP8_DISPLAY_WIDTH) {
+						break;
+					}
+					uint8_t sprite_pixel = (sprite_data >> (7 - col)) & 0x1;
+					uint16_t pixel_idx = (py + row) * CHIP8_DISPLAY_WIDTH + px + col;
+					if (sprite_pixel == 0) {
+						continue;
+					} else if (emulator->display[pixel_idx] == CHIP8_PIXEL_ON) {
+						emulator->display[pixel_idx] = CHIP8_PIXEL_OFF;
+						emulator->v[0xF] = 1;
+					} else {
+						emulator->display[pixel_idx] = CHIP8_PIXEL_ON;
+					}
+				}
+			}
+			break;
+		}
+		default:
+			fprintf(stderr, "Unknown instruction: 0x%04X\n", curr_instruction);
+			return false;
+	}
 
 	return true;
 }
